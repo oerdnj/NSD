@@ -94,6 +94,10 @@ static struct tcp_accept_handler_data*	tcp_accept_handlers;
 static struct event slowaccept_event;
 static int slowaccept;
 
+#ifdef HAVE_FUZZING
+#  define NONBLOCKING_IS_BROKEN
+#endif
+
 #ifndef NONBLOCKING_IS_BROKEN
 #  define NUM_RECV_PER_SELECT 100
 #endif
