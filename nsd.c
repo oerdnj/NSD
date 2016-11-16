@@ -443,7 +443,11 @@ main(int argc, char *argv[])
 	nsd.region      = region_create(xalloc, free);
 	nsd.dbfile	= 0;
 	nsd.pidfile	= 0;
+#ifndef HAVE_FUZZING
 	nsd.server_kind = NSD_SERVER_MAIN;
+#else
+	nsd.server_kind = NSD_SERVER_BOTH;
+#endif
 	memset(&hints, 0, sizeof(*hints)*2);
 	hints[0].ai_family = DEFAULT_AI_FAMILY;
 	hints[0].ai_flags = AI_PASSIVE;
