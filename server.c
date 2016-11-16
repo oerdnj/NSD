@@ -2148,7 +2148,7 @@ server_child(struct nsd *nsd)
 	server_shutdown(nsd);
 }
 
-#if defined(HAVE_SENDMMSG) && !defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG)
+#if defined(HAVE_SENDMMSG) && !defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG) && !defined(HAVE_FUZZING)
 static void
 handle_udp(int fd, short event, void* arg)
 {
@@ -2272,7 +2272,7 @@ handle_udp(int fd, short event, void* arg)
 	}
 }
 
-#else /* defined(HAVE_SENDMMSG) && !defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG) */
+#elif !defined(HAVE_FUZZING) /* defined(HAVE_SENDMMSG) && !defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG) */
 
 static void
 handle_udp(int fd, short event, void* arg)
@@ -2411,6 +2411,92 @@ handle_udp(int fd, short event, void* arg)
 	}
 #endif
 }
+#else /* defined(HAVE_SENDMMSG) && !defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG) */
+
+static void
+handle_udp(int fd, short event, void* arg)
+{
+	struct udp_handler_data *data = (struct udp_handler_data *) arg;
+	int received, sent;
+	struct query *q;
+
+	if (!(event & EV_READ)) {
+		return;
+	}
+
+	/* Initialize the query... */
+	query_reset(q, UDP_MAX_MESSAGE_LEN, 0);
+
+	received = read(0,
+			buffer_begin(q->packet),
+			buffer_remaining(q->packet));
+	if (received == -1) {
+		if (errno != EAGAIN && errno != EINTR) {
+			log_msg(LOG_ERR, "recvfrom failed: %s", strerror(errno));
+			STATUP(data->nsd, rxerr);
+			/* No zone statup */
+		}
+		return;
+	}
+
+	/* Account... */
+	if (data->socket->fam == AF_INET) {
+		STATUP(data->nsd, qudp);
+	} else if (data->socket->fam == AF_INET6) {
+		STATUP(data->nsd, qudp6);
+	}
+
+	buffer_skip(q->packet, received);
+	buffer_flip(q->packet);
+
+	/* Process and answer the query... */
+	if (server_process_query_udp(data->nsd, q) != QUERY_DISCARDED) {
+		if (RCODE(q->packet) == RCODE_OK && !AA(q->packet)) {
+			STATUP(data->nsd, nona);
+			ZTATUP(data->nsd, q->zone, nona);
+		}
+
+#ifdef USE_ZONE_STATS
+		if (data->socket->fam == AF_INET) {
+			ZTATUP(data->nsd, q->zone, qudp);
+		} else if (data->socket->fam == AF_INET6) {
+			ZTATUP(data->nsd, q->zone, qudp6);
+		}
+#endif
+
+		/* Add EDNS0 and TSIG info if necessary.  */
+		query_add_optional(q, data->nsd);
+
+		buffer_flip(q->packet);
+
+		sent = write(1,
+			     buffer_begin(q->packet),
+			     buffer_remaining(q->packet));
+		if (sent == -1) {
+			const char* es = strerror(errno);
+			char a[48];
+			log_msg(LOG_ERR, "sendto %s failed: %s", "localhost", es);
+			STATUP(data->nsd, txerr);
+			ZTATUP(data->nsd, q->zone, txerr);
+		} else if ((size_t) sent != buffer_remaining(q->packet)) {
+			log_msg(LOG_ERR, "sent %d in place of %d bytes", sent, (int) buffer_remaining(q->packet));
+		} else {
+#ifdef BIND8_STATS
+			/* Account the rcode & TC... */
+			STATUP2(data->nsd, rcode, RCODE(q->packet));
+			ZTATUP2(data->nsd, q->zone, rcode, RCODE(q->packet));
+			if (TC(q->packet)) {
+				STATUP(data->nsd, truncated);
+				ZTATUP(data->nsd, q->zone, truncated);
+			}
+#endif /* BIND8_STATS */
+		}
+	} else {
+		STATUP(data->nsd, dropped);
+		ZTATUP(data->nsd, q->zone, dropped);
+	}
+}
+
 #endif /* defined(HAVE_SENDMMSG) && !defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG) */
 
 

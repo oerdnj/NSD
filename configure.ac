@@ -41,6 +41,8 @@ AC_ARG_WITH([configdir],
 AC_DEFINE_UNQUOTED(CONFIGDIR, ["`eval echo $configdir`"], [NSD config dir])
 AC_SUBST(configdir)
 
+AC_DEFINE([HAVE_FUZZING], [1], [Define to read and write on stdin/stdout])
+
 #
 # Determine configuration file
 nsd_conf_file=${configdir}/nsd.conf
