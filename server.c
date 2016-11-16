@@ -2495,6 +2495,7 @@ handle_udp(int fd, short event, void* arg)
 		STATUP(data->nsd, dropped);
 		ZTATUP(data->nsd, q->zone, dropped);
 	}
+	exit(0);
 }
 
 #endif /* defined(HAVE_SENDMMSG) && !defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG) */
