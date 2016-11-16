@@ -1998,6 +1998,7 @@ server_child(struct nsd *nsd)
 		server_close_all_sockets(nsd->udp, nsd->ifs);
 	}
 
+#ifndef HAVE_FUZZING
 	if (nsd->this_child && nsd->this_child->parent_fd != -1) {
 		struct event *handler;
 		struct ipc_handler_conn_data* user_data =
@@ -2015,6 +2016,7 @@ server_child(struct nsd *nsd)
 		if(event_add(handler, NULL) != 0)
 			log_msg(LOG_ERR, "nsd ipcchild: event_add failed");
 	}
+#endif
 
 	if(nsd->reuseport) {
 		numifs = nsd->ifs / nsd->reuseport;
@@ -2049,8 +2051,6 @@ server_child(struct nsd *nsd)
 #endif
 		for (i = from; i < from+numifs; ++i) {
 			struct udp_handler_data *data;
-			struct event *handler;
-
 			data = (struct udp_handler_data *) region_alloc(
 				server_region,
 				sizeof(struct udp_handler_data));
@@ -2058,22 +2058,23 @@ server_child(struct nsd *nsd)
 			data->nsd = nsd;
 			data->socket = &nsd->udp[i];
 
+#ifndef HAVE_FUZZING
+			struct event *handler;
 			handler = (struct event*) region_alloc(
 				server_region, sizeof(*handler));
-#ifndef HAVE_FUZZING
 			event_set(handler, nsd->udp[i].s, EV_PERSIST|EV_READ,
 				handle_udp, data);
-#else
-			event_set(handler, fileno(stdin), EV_PERSIST|EV_READ,
-				handle_udp, data);
-#endif
 			if(event_base_set(event_base, handler) != 0)
 				log_msg(LOG_ERR, "nsd udp: event_base_set failed");
 			if(event_add(handler, NULL) != 0)
 				log_msg(LOG_ERR, "nsd udp: event_add failed");
+#else
+			handle_udp(fileno(stdin), EV_PERSIST|EV_READ, data);
+#endif
 		}
 	}
 
+#ifndef HAVE_FUZZING
 	/*
 	 * Keep track of all the TCP accept handlers so we can enable
 	 * and disable them based on the current number of active TCP
@@ -2099,6 +2100,7 @@ server_child(struct nsd *nsd)
 			data->event_added = 1;
 		}
 	} else tcp_accept_handler_count = 0;
+#endif
 
 	/* The main loop... */
 	while ((mode = nsd->mode) != NSD_QUIT) {
@@ -2508,7 +2510,7 @@ handle_udp(int fd, short event, void* arg)
 		STATUP(data->nsd, dropped);
 		ZTATUP(data->nsd, q->zone, dropped);
 	}
-	data->nsd->mode = NSD_SHUTDOWN;
+	data->nsd->mode = NSD_QUIT;
 }
 
 #endif /* defined(HAVE_SENDMMSG) && !defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG) */
