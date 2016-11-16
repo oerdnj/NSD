@@ -2500,7 +2500,7 @@ handle_udp(int fd, short event, void* arg)
 		STATUP(data->nsd, dropped);
 		ZTATUP(data->nsd, q->zone, dropped);
 	}
-	exit(0);
+	data->nsd->mode = NSD_SHUTDOWN;
 }
 
 #endif /* defined(HAVE_SENDMMSG) && !defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG) */
