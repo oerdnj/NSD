@@ -675,9 +675,6 @@ main(int argc, char *argv[])
 	if(nsd.child_count == 0) {
 		nsd.child_count = nsd.options->server_count;
 	}
-#ifdef HAVE_FUZZING
-	nsd.child_count = 1;
-#endif
 #ifdef SO_REUSEPORT
 	if(nsd.options->reuseport && nsd.child_count > 1) {
 		nsd.reuseport = nsd.child_count;
@@ -772,10 +769,9 @@ main(int argc, char *argv[])
 	}
 
 #ifdef HAVE_FUZZING
-	i = 0;
-	nsd->child_count = 0;
-	nsd.this_child = nsd.children[i];
-	nsd->this_child->child_num = i;
+	nsd.child_count = 0;
+	nsd.this_child = &nsd.children[0];
+	nsd.this_child->child_num = i;
 #else
 	nsd.this_child = NULL;
 #endif

@@ -94,10 +94,6 @@ static struct tcp_accept_handler_data*	tcp_accept_handlers;
 static struct event slowaccept_event;
 static int slowaccept;
 
-#ifdef HAVE_FUZZING
-#  define NONBLOCKING_IS_BROKEN
-#endif
-
 #ifndef NONBLOCKING_IS_BROKEN
 #  define NUM_RECV_PER_SELECT 100
 #endif
@@ -1606,7 +1602,6 @@ server_main(struct nsd *nsd)
 	/* Add listener for the XFRD process */
 	netio_add_handler(netio, nsd->xfrd_listener);
 
-#ifndef HAVE_FUZZING
 	/* Start the child processes that handle incoming queries */
 	if (server_start_children(nsd, server_region, netio,
 		&nsd->xfrd_listener->fd) != 0) {
@@ -1617,10 +1612,6 @@ server_main(struct nsd *nsd)
 
 	/* This_child MUST be 0, because this is the parent process */
 	assert(nsd->this_child == 0);
-#else
-	server_child(nsd);
-	/* Unreachable */
-#endif
 	/* Run the server until we get a shutdown signal */
 	while ((mode = nsd->mode) != NSD_SHUTDOWN) {
 		/* Did we receive a signal that changes our mode? */
@@ -2031,7 +2022,7 @@ server_child(struct nsd *nsd)
 	}
 
 	if (nsd->server_kind & NSD_SERVER_UDP) {
-#if (defined(NONBLOCKING_IS_BROKEN) || !defined(HAVE_RECVMMSG))
+#if (defined(HAVE_FUZZING) || defined(NONBLOCKING_IS_BROKEN) || !defined(HAVE_RECVMMSG))
 		udp_query = query_create(server_region,
 			compressed_dname_offsets, compression_table_size);
 #else
