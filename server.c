@@ -2025,6 +2025,14 @@ server_child(struct nsd *nsd)
 #if (defined(HAVE_FUZZING) || defined(NONBLOCKING_IS_BROKEN) || !defined(HAVE_RECVMMSG))
 		udp_query = query_create(server_region,
 			compressed_dname_offsets, compression_table_size);
+		struct udp_handler_data *data;
+		data = (struct udp_handler_data *) region_alloc(
+			server_region,
+			sizeof(struct udp_handler_data));
+		data->query = udp_query;
+		data->nsd = nsd;
+		data->socket = NULL;
+		{
 #else
 		udp_query = NULL;
 		memset(msgs, 0, sizeof(msgs));
@@ -2039,7 +2047,6 @@ server_child(struct nsd *nsd)
 			msgs[i].msg_hdr.msg_name    = &queries[i]->addr;
 			msgs[i].msg_hdr.msg_namelen = queries[i]->addrlen;
 		}
-#endif
 		for (i = from; i < from+numifs; ++i) {
 			struct udp_handler_data *data;
 			data = (struct udp_handler_data *) region_alloc(
@@ -2049,7 +2056,6 @@ server_child(struct nsd *nsd)
 			data->nsd = nsd;
 			data->socket = &nsd->udp[i];
 
-#ifndef HAVE_FUZZING
 			struct event *handler;
 			handler = (struct event*) region_alloc(
 				server_region, sizeof(*handler));
@@ -2430,6 +2436,8 @@ handle_udp(int fd, short event, void* arg)
 		return;
 	}
 
+	q = data->query;
+
 	/* Initialize the query... */
 	query_reset(q, UDP_MAX_MESSAGE_LEN, 0);
 
@@ -2446,11 +2454,7 @@ handle_udp(int fd, short event, void* arg)
 	}
 
 	/* Account... */
-	if (data->socket->fam == AF_INET) {
-		STATUP(data->nsd, qudp);
-	} else if (data->socket->fam == AF_INET6) {
-		STATUP(data->nsd, qudp6);
-	}
+	STATUP(data->nsd, qudp);
 
 	buffer_skip(q->packet, received);
 	buffer_flip(q->packet);
@@ -2463,11 +2467,7 @@ handle_udp(int fd, short event, void* arg)
 		}
 
 #ifdef USE_ZONE_STATS
-		if (data->socket->fam == AF_INET) {
-			ZTATUP(data->nsd, q->zone, qudp);
-		} else if (data->socket->fam == AF_INET6) {
-			ZTATUP(data->nsd, q->zone, qudp6);
-		}
+		ZTATUP(data->nsd, q->zone, qudp);
 #endif
 
 		/* Add EDNS0 and TSIG info if necessary.  */
