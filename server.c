@@ -257,7 +257,6 @@ restart_child_servers(struct nsd *nsd, region_type* region, netio_type* netio,
 	size_t i;
 	int sv[2];
 
-#ifndef HAVE_FUZZING
 	/* Fork the child processes... */
 	for (i = 0; i < nsd->child_count; ++i) {
 		if (nsd->children[i].pid <= 0) {
@@ -308,7 +307,6 @@ restart_child_servers(struct nsd *nsd, region_type* region, netio_type* netio,
 				nsd->children[i].handler->fd = nsd->children[i].child_fd;
 				break;
 			case 0: /* CHILD */
-#endif
 				/* the child need not be able to access the
 				 * nsd.db file */
 				namedb_close_udb(nsd->db);
@@ -335,7 +333,6 @@ restart_child_servers(struct nsd *nsd, region_type* region, netio_type* netio,
 				server_child(nsd);
 				/* NOTREACH */
 				exit(0);
-#ifndef HAVE_FUZZING
 			case -1:
 				log_msg(LOG_ERR, "fork failed: %s",
 					strerror(errno));
@@ -343,7 +340,6 @@ restart_child_servers(struct nsd *nsd, region_type* region, netio_type* netio,
 			}
 		}
 	}
-#endif
 	return 0;
 }
 
@@ -1610,6 +1606,7 @@ server_main(struct nsd *nsd)
 	/* Add listener for the XFRD process */
 	netio_add_handler(netio, nsd->xfrd_listener);
 
+#ifndef HAVE_FUZZING
 	/* Start the child processes that handle incoming queries */
 	if (server_start_children(nsd, server_region, netio,
 		&nsd->xfrd_listener->fd) != 0) {
@@ -1620,7 +1617,10 @@ server_main(struct nsd *nsd)
 
 	/* This_child MUST be 0, because this is the parent process */
 	assert(nsd->this_child == 0);
-
+#else
+	server_child(nsd);
+	/* Unreachable */
+#endif
 	/* Run the server until we get a shutdown signal */
 	while ((mode = nsd->mode) != NSD_SHUTDOWN) {
 		/* Did we receive a signal that changes our mode? */
