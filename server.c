@@ -94,11 +94,11 @@ static struct tcp_accept_handler_data*	tcp_accept_handlers;
 static struct event slowaccept_event;
 static int slowaccept;
 
-#ifndef NONBLOCKING_IS_BROKEN
+#if (!defined(NONBLOCKING_IS_BROKEN) && !defined(HAVE_FUZZING))
 #  define NUM_RECV_PER_SELECT 100
 #endif
 
-#if (!defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG))
+#if (!defined(HAVE_FUZZING) && !defined(NONBLOCKING_IS_BROKEN) && defined(HAVE_RECVMMSG))
 struct mmsghdr msgs[NUM_RECV_PER_SELECT];
 struct iovec iovecs[NUM_RECV_PER_SELECT];
 struct query *queries[NUM_RECV_PER_SELECT];
