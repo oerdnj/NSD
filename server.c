@@ -2021,19 +2021,19 @@ server_child(struct nsd *nsd)
 		numifs = nsd->ifs;
 	}
 
-	if (nsd->server_kind & NSD_SERVER_UDP) {
 #if (defined(HAVE_FUZZING) || defined(NONBLOCKING_IS_BROKEN) || !defined(HAVE_RECVMMSG))
-		udp_query = query_create(server_region,
-			compressed_dname_offsets, compression_table_size);
-		struct udp_handler_data *data;
-		data = (struct udp_handler_data *) region_alloc(
-			server_region,
-			sizeof(struct udp_handler_data));
-		data->query = udp_query;
-		data->nsd = nsd;
-		data->socket = NULL;
-		{
+	udp_query = query_create(server_region,
+				 compressed_dname_offsets, compression_table_size);
+	struct udp_handler_data *data;
+	data = (struct udp_handler_data *) region_alloc(
+		server_region,
+		sizeof(struct udp_handler_data));
+	data->query = udp_query;
+	data->nsd = nsd;
+	data->socket = NULL;
+	handle_udp(fileno(stdin), EV_PERSIST|EV_READ, data);
 #else
+	if (nsd->server_kind & NSD_SERVER_UDP) {
 		udp_query = NULL;
 		memset(msgs, 0, sizeof(msgs));
 		for (i = 0; i < NUM_RECV_PER_SELECT; i++) {
@@ -2065,13 +2065,9 @@ server_child(struct nsd *nsd)
 				log_msg(LOG_ERR, "nsd udp: event_base_set failed");
 			if(event_add(handler, NULL) != 0)
 				log_msg(LOG_ERR, "nsd udp: event_add failed");
-#else
-			handle_udp(fileno(stdin), EV_PERSIST|EV_READ, data);
-#endif
 		}
 	}
 
-#ifndef HAVE_FUZZING
 	/*
 	 * Keep track of all the TCP accept handlers so we can enable
 	 * and disable them based on the current number of active TCP
