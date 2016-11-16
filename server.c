@@ -2052,8 +2052,13 @@ server_child(struct nsd *nsd)
 
 			handler = (struct event*) region_alloc(
 				server_region, sizeof(*handler));
+#ifndef HAVE_FUZZING
 			event_set(handler, nsd->udp[i].s, EV_PERSIST|EV_READ,
 				handle_udp, data);
+#else
+			event_set(handler, fileno(stdin), EV_PERSIST|EV_READ,
+				handle_udp, data);
+#endif
 			if(event_base_set(event_base, handler) != 0)
 				log_msg(LOG_ERR, "nsd udp: event_base_set failed");
 			if(event_add(handler, NULL) != 0)
@@ -2427,7 +2432,7 @@ handle_udp(int fd, short event, void* arg)
 	/* Initialize the query... */
 	query_reset(q, UDP_MAX_MESSAGE_LEN, 0);
 
-	received = read(0,
+	received = read(fileno(stdin),
 			buffer_begin(q->packet),
 			buffer_remaining(q->packet));
 	if (received == -1) {
@@ -2469,7 +2474,7 @@ handle_udp(int fd, short event, void* arg)
 
 		buffer_flip(q->packet);
 
-		sent = write(1,
+		sent = write(fileno(stdout),
 			     buffer_begin(q->packet),
 			     buffer_remaining(q->packet));
 		if (sent == -1) {
