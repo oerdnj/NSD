@@ -769,9 +769,13 @@ main(int argc, char *argv[])
 	}
 
 #ifdef HAVE_FUZZING
+	i = 0;
+	nsd.pid = 0;
 	nsd.child_count = 0;
-	nsd.this_child = &nsd.children[0];
+	nsd.server_kind = nsd.children[i].kind;
+	nsd.this_child = &nsd.children[i];
 	nsd.this_child->child_num = i;
+	nsd.this_child->child_fd = -1;
 #else
 	nsd.this_child = NULL;
 #endif
